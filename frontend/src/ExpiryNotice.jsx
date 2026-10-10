@@ -8,10 +8,8 @@ import {
   ExternalLink, 
   X, 
   Phone, 
-  Mail, 
   MessageCircle, 
-  Headphones,
-  CheckCircle2
+  Headphones 
 } from 'lucide-react';
 
 const ExpiryNotice = () => {
@@ -114,8 +112,14 @@ const ExpiryNotice = () => {
 
       {/* Developer Contact Popup Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#0b1528] border border-sky-500/30 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-[0_0_50px_rgba(14,165,233,0.25)] relative overflow-hidden">
+        <div 
+          onClick={() => setIsModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#0b1528] border border-sky-500/30 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-[0_0_50px_rgba(14,165,233,0.25)] relative overflow-hidden"
+          >
             
             {/* Top gradient highlight */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-600" />
