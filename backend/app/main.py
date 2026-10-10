@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -31,6 +32,23 @@ except ImportError:
 domain.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Prediction API")
+
+# License Expiration Date: 01 October 2027
+EXPIRY_DATE = datetime(2027, 10, 1, 0, 0, 0)
+
+@app.middleware("http")
+async def verify_license_expiry(request: Request, call_next):
+    # Check if system date reached or passed 01 October 2027
+    if datetime.now() >= EXPIRY_DATE and request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "LICENSE_EXPIRED",
+                "message": "AI Model and Server subscription expired on 01 October 2027. Please renew your license."
+            }
+        )
+    return await call_next(request)
 
 # CORS
 app.add_middleware(

@@ -2,8 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Activity, Brain, Target, History, RefreshCcw, Sparkles } from 'lucide-react';
+import ExpiryNotice from './ExpiryNotice';
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamic API URL: points to /api in production or localhost in development
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000/api' : '/api');
+
+// Expiration date: 01 October 2027 (१ ऑक्टोबर २०२७ रोजीच हे आपोआप रेंडर होईल)
+const EXPIRY_DATE = new Date('2027-10-01T00:00:00');
 
 function App() {
   const [stats, setStats] = useState({ total_results: 0 });
@@ -12,6 +17,11 @@ function App() {
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLicenseExpired, setIsLicenseExpired] = useState(() => {
+    // Check if system date reached 01 Oct 2027 or if preview mode is triggered via ?preview_expiry=true
+    const urlParams = new URLSearchParams(window.location.search);
+    return new Date() >= EXPIRY_DATE || urlParams.get('preview_expiry') === 'true';
+  });
 
   const fetchDashboardData = async () => {
     try {
@@ -28,6 +38,9 @@ function App() {
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      if (error?.response?.data?.error === 'LICENSE_EXPIRED' || error?.response?.status === 403) {
+        setIsLicenseExpired(true);
+      }
     } finally {
       setLoading(false);
       setTimeout(() => setIsRefreshing(false), 1000);
@@ -49,10 +62,17 @@ function App() {
       await fetchDashboardData();
     } catch (error) {
       console.error('Error submitting number:', error);
+      if (error?.response?.data?.error === 'LICENSE_EXPIRED' || error?.response?.status === 403) {
+        setIsLicenseExpired(true);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (isLicenseExpired) {
+    return <ExpiryNotice />;
+  }
 
   const numberColors = [
     'bg-rose-500 shadow-rose-500/50', 
