@@ -39,7 +39,9 @@ class PredictionResponseData(BaseModel):
 
 class StatisticsResponse(BaseModel):
     total_results: int
+    total_results_24h: Optional[int] = 0
     number_frequency: Dict[str, int]
+    number_frequency_24h: Optional[Dict[str, int]] = None
     odd_even_distribution: Dict[str, float]
     recent_frequency: Dict[str, int]
     repeated_numbers: int

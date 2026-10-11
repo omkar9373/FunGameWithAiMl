@@ -99,11 +99,19 @@ def create_result(result: schemas.GameResultCreate, background_tasks: Background
 @app.get("/api/results/latest", response_model=schemas.StandardResponse)
 def get_latest_results(limit: int = 10, db: Session = Depends(database.get_db)):
     results = db.query(domain.GameResult).order_by(desc(domain.GameResult.id)).limit(limit).all()
-    return {"success": True, "message": "Latest results", "data": results}
+    formatted = [{
+        "id": r.id,
+        "value": int(r.value) if str(r.value).isdigit() else str(r.value),
+        "date_str": r.date_str or "",
+        "time_str": r.time_str or "",
+        "created_at": r.created_at.isoformat() if r.created_at else None
+    } for r in results]
+    return {"success": True, "message": "Latest results", "data": formatted}
 
 @app.get("/api/results/statistics", response_model=schemas.StandardResponse)
 def get_statistics(db: Session = Depends(database.get_db)):
     from sqlalchemy import func, desc
+    from datetime import datetime, timedelta
     
     total = db.query(domain.GameResult).count()
     
@@ -111,7 +119,16 @@ def get_statistics(db: Session = Depends(database.get_db)):
     freq_data = db.query(domain.GameResult.value, func.count(domain.GameResult.id)) \
                   .group_by(domain.GameResult.value).all()
                   
-    number_frequency = {str(row[0]): row[1] for row in freq_data}
+    number_frequency = {str(row[0]): int(row[1]) for row in freq_data}
+    
+    # Calculate number frequency for the LAST 24 HOURS
+    cutoff_24h = datetime.now() - timedelta(hours=24)
+    freq_data_24h = db.query(domain.GameResult.value, func.count(domain.GameResult.id)) \
+                      .filter(domain.GameResult.created_at >= cutoff_24h) \
+                      .group_by(domain.GameResult.value).all()
+                      
+    number_frequency_24h = {str(row[0]): int(row[1]) for row in freq_data_24h}
+    total_24h = sum(number_frequency_24h.values())
     
     # Calculate last seen time for each number (Limit to last 500 to save memory/time)
     all_results = db.query(domain.GameResult).order_by(desc(domain.GameResult.id)).limit(500).all()
@@ -126,7 +143,9 @@ def get_statistics(db: Session = Depends(database.get_db)):
     
     return {"success": True, "message": "Statistics", "data": {
         "total_results": total,
+        "total_results_24h": total_24h,
         "number_frequency": number_frequency,
+        "number_frequency_24h": number_frequency_24h,
         "last_seen": last_seen,
         "odd_even_distribution": {},
         "recent_frequency": {},
@@ -144,7 +163,8 @@ def predict(db: Session = Depends(database.get_db)):
         "model": "XGBoost (Pending Data)",
         "model_version": "v0.0",
         "prediction": {"top_number": "-", "probability": 0.0},
-        "top_3": [{"number": i, "probability": 0.0} for i in range(10)],
+        "top_3": [{"number": i, "probability": 0.0} for i in range(3)],
+        "all_probabilities": [{"number": i, "probability": 0.0} for i in range(10)],
         "confidence": 0.0,
         "message": "Waiting for at least 100 records in DB to train AI."
     }
@@ -192,11 +212,11 @@ def predict(db: Session = Depends(database.get_db)):
         # Predict probabilities
         probs = model.predict_proba(X_pred)[0]
         
-        # Format the top 3
+        # Format the top 3 (highest probabilities first)
         top_indices = probs.argsort()[-3:][::-1]
         top_3 = [{"number": int(i), "probability": float(probs[i])} for i in top_indices]
         
-        # Format all numbers for the table
+        # Format all numbers for the table and bar chart
         all_probs = [{"number": i, "probability": float(probs[i])} for i in range(10)]
         
         return {
@@ -209,7 +229,8 @@ def predict(db: Session = Depends(database.get_db)):
                     "top_number": top_3[0]['number'],
                     "probability": top_3[0]['probability']
                 },
-                "top_3": all_probs, # Send all 10 probabilities to UI
+                "top_3": top_3,
+                "all_probabilities": all_probs,
                 "confidence": float(max(probs)),
                 "message": "AI prediction ready."
             }
