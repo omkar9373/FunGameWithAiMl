@@ -111,7 +111,7 @@ def get_latest_results(limit: int = 10, db: Session = Depends(database.get_db)):
 @app.get("/api/results/statistics", response_model=schemas.StandardResponse)
 def get_statistics(db: Session = Depends(database.get_db)):
     from sqlalchemy import func, desc
-    from datetime import datetime, timedelta
+    from datetime import datetime
     
     total = db.query(domain.GameResult).count()
     
@@ -121,31 +121,46 @@ def get_statistics(db: Session = Depends(database.get_db)):
                   
     number_frequency = {str(row[0]): int(row[1]) for row in freq_data}
     
-    # Calculate number frequency for the LAST 24 HOURS
-    cutoff_24h = datetime.now() - timedelta(hours=24)
-    freq_data_24h = db.query(domain.GameResult.value, func.count(domain.GameResult.id)) \
-                      .filter(domain.GameResult.created_at >= cutoff_24h) \
-                      .group_by(domain.GameResult.value).all()
-                      
-    number_frequency_24h = {str(row[0]): int(row[1]) for row in freq_data_24h}
-    total_24h = sum(number_frequency_24h.values())
+    # Calculate number frequency for TODAY ONLY (Midnight 00:00:00 to 23:59:59)
+    today = datetime.now()
+    today_str = today.strftime("%Y-%m-%d")
+    start_of_today = today.replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # Calculate last seen time for each number (Limit to last 500 to save memory/time)
+    freq_data_today = db.query(domain.GameResult.value, func.count(domain.GameResult.id)) \
+                        .filter((domain.GameResult.date_str == today_str) | (domain.GameResult.created_at >= start_of_today)) \
+                        .group_by(domain.GameResult.value).all()
+                      
+    number_frequency_today = {str(row[0]): int(row[1]) for row in freq_data_today}
+    total_today = sum(number_frequency_today.values())
+    
+    # Calculate last seen time for today's numbers
+    today_results = db.query(domain.GameResult) \
+                      .filter((domain.GameResult.date_str == today_str) | (domain.GameResult.created_at >= start_of_today)) \
+                      .order_by(desc(domain.GameResult.id)).all()
+    today_last_seen = {}
+    for r in today_results:
+        val = str(r.value)
+        if val not in today_last_seen:
+            today_last_seen[val] = r.time_str[:5] if r.time_str else "-"
+            
+    # Calculate all-time last seen
     all_results = db.query(domain.GameResult).order_by(desc(domain.GameResult.id)).limit(500).all()
     last_seen = {}
     for r in all_results:
         val = str(r.value)
         if val not in last_seen:
-            # We can format it as "DD/MM HH:MM" or just time
             time_formatted = r.time_str[:5] if r.time_str else "-"
             date_formatted = r.date_str[-5:] if r.date_str else "-"
             last_seen[val] = f"{date_formatted} {time_formatted}"
     
     return {"success": True, "message": "Statistics", "data": {
         "total_results": total,
-        "total_results_24h": total_24h,
+        "total_results_today": total_today,
+        "total_results_24h": total_today,
         "number_frequency": number_frequency,
-        "number_frequency_24h": number_frequency_24h,
+        "number_frequency_today": number_frequency_today,
+        "number_frequency_24h": number_frequency_today,
+        "today_last_seen": today_last_seen,
         "last_seen": last_seen,
         "odd_even_distribution": {},
         "recent_frequency": {},

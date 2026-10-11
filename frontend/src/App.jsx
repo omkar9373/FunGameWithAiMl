@@ -323,7 +323,7 @@ function App() {
               पुन्हा पुन्हा आलेले नंबर रिपोर्ट
             </h2>
             <p className="text-sky-400/60 font-bold uppercase tracking-widest text-[10px] mt-1 bg-sky-500/10 inline-block px-3 py-0.5 rounded-full border border-sky-500/20">
-              Last 24 Hours Live Report
+              Today's Live Report (रात्री १२:०० ते रात्री १२:००)
             </p>
           </div>
           
@@ -341,11 +341,11 @@ function App() {
                 <tr className="hover:bg-sky-900/20 transition-colors">
                   <td className="bg-[#0b1b3d] font-bold p-3 border border-sky-900/50 text-sky-200">
                     <div>एकूण रिपोर्ट</div>
-                    <div className="text-[10px] text-sky-400/60 font-normal">(गेल्या २४ तासांत)</div>
+                    <div className="text-[10px] text-sky-400/60 font-normal">(आजचा दिवस)</div>
                   </td>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(num => (
                     <td key={num} className="bg-[#081229]/50 p-3 text-center border border-sky-900/50 text-sky-400 font-bold text-base">
-                      {stats?.number_frequency_24h ? (stats.number_frequency_24h[num] || 0) : (stats?.number_frequency?.[num] || 0)}
+                      {stats?.number_frequency_today ? (stats.number_frequency_today[num] || 0) : (stats?.number_frequency_24h ? (stats.number_frequency_24h[num] || 0) : 0)}
                     </td>
                   ))}
                 </tr>
@@ -364,10 +364,13 @@ function App() {
                   })}
                 </tr>
                 <tr className="hover:bg-sky-900/20 transition-colors">
-                  <td className="bg-[#0b1b3d] font-bold p-3 border border-sky-900/50 text-sky-200">दिनांक आणि वेळ</td>
+                  <td className="bg-[#0b1b3d] font-bold p-3 border border-sky-900/50 text-sky-200">
+                    <div>शेवटची वेळ</div>
+                    <div className="text-[10px] text-sky-400/60 font-normal">(आज आलेली)</div>
+                  </td>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(num => (
-                    <td key={num} className="bg-[#081229]/50 p-3 text-center border border-sky-900/50 text-sky-600 font-bold">
-                      {stats?.last_seen?.[num] || '-'}
+                    <td key={num} className="bg-[#081229]/50 p-3 text-center border border-sky-900/50 text-sky-400 font-bold">
+                      {stats?.today_last_seen?.[num] || '-'}
                     </td>
                   ))}
                 </tr>
