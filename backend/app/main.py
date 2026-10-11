@@ -61,21 +61,24 @@ app.add_middleware(
 
 @app.post("/api/results", response_model=schemas.StandardResponse)
 def create_result(result: schemas.GameResultCreate, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
     
-    # Fill in date_str and time_str if not provided
-    dt = datetime.now()
+    # Fill in date_str and time_str in IST (Indian Standard Time, UTC+5:30) if not provided
+    IST = timezone(timedelta(hours=5, minutes=30))
+    dt_ist = datetime.now(IST)
+    dt_naive = dt_ist.replace(tzinfo=None)
+    
     if not result.date_str:
-        result.date_str = dt.strftime("%Y-%m-%d")
+        result.date_str = dt_ist.strftime("%Y-%m-%d")
     if not result.time_str:
-        result.time_str = dt.strftime("%H:%M:%S")
+        result.time_str = dt_ist.strftime("%H:%M:%S")
         
     db_result = domain.GameResult(
         value=result.value,
         date_str=result.date_str,
         time_str=result.time_str,
-        created_at=dt,
-        updated_at=dt
+        created_at=dt_naive,
+        updated_at=dt_naive
     )
     db.add(db_result)
     db.commit()
@@ -111,7 +114,10 @@ def get_latest_results(limit: int = 10, db: Session = Depends(database.get_db)):
 @app.get("/api/results/statistics", response_model=schemas.StandardResponse)
 def get_statistics(db: Session = Depends(database.get_db)):
     from sqlalchemy import func, desc
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
+    
+    IST = timezone(timedelta(hours=5, minutes=30))
+    today_str = datetime.now(IST).strftime("%Y-%m-%d")
     
     total = db.query(domain.GameResult).count()
     
@@ -121,21 +127,18 @@ def get_statistics(db: Session = Depends(database.get_db)):
                   
     number_frequency = {str(row[0]): int(row[1]) for row in freq_data}
     
-    # Calculate number frequency for TODAY ONLY (Midnight 00:00:00 to 23:59:59)
-    today = datetime.now()
-    today_str = today.strftime("%Y-%m-%d")
-    start_of_today = today.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+    # Calculate number frequency for TODAY ONLY (from 00:00:00 to 23:59:59 IST)
+    # Resets to 0 immediately when date changes at midnight!
     freq_data_today = db.query(domain.GameResult.value, func.count(domain.GameResult.id)) \
-                        .filter((domain.GameResult.date_str == today_str) | (domain.GameResult.created_at >= start_of_today)) \
+                        .filter(domain.GameResult.date_str == today_str) \
                         .group_by(domain.GameResult.value).all()
                       
     number_frequency_today = {str(row[0]): int(row[1]) for row in freq_data_today}
     total_today = sum(number_frequency_today.values())
     
-    # Calculate last seen time for today's numbers
+    # Calculate last seen time for today's numbers (only numbers saved TODAY)
     today_results = db.query(domain.GameResult) \
-                      .filter((domain.GameResult.date_str == today_str) | (domain.GameResult.created_at >= start_of_today)) \
+                      .filter(domain.GameResult.date_str == today_str) \
                       .order_by(desc(domain.GameResult.id)).all()
     today_last_seen = {}
     for r in today_results:
@@ -154,6 +157,7 @@ def get_statistics(db: Session = Depends(database.get_db)):
             last_seen[val] = f"{date_formatted} {time_formatted}"
     
     return {"success": True, "message": "Statistics", "data": {
+        "today_date": today_str,
         "total_results": total,
         "total_results_today": total_today,
         "total_results_24h": total_today,
