@@ -344,7 +344,7 @@ function App() {
                     <div className="text-[10px] text-sky-400/60 font-normal">(आजचा दिवस)</div>
                   </td>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(num => (
-                    <td key={num} className="bg-[#081229]/50 p-3 text-center border border-sky-900/50 text-sky-400 font-bold text-base">
+                    <td key={num} className="bg-[#081229]/50 p-3 text-center border border-sky-900/50 text-white font-bold text-base">
                       {stats?.number_frequency_today ? (stats.number_frequency_today[num] || 0) : (stats?.number_frequency_24h ? (stats.number_frequency_24h[num] || 0) : 0)}
                     </td>
                   ))}
