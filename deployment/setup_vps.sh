@@ -5,9 +5,14 @@ echo "=========================================="
 echo " Starting Hostinger VPS Deployment Setup "
 echo "=========================================="
 
+# Fix any interrupted package installation
+echo "==> Configuring interrupted dpkg packages..."
+export DEBIAN_FRONTEND=noninteractive
+sudo dpkg --configure -a
+
 # 1. Update system packages
 echo "==> Updating package repository..."
-sudo apt update && sudo apt upgrade -y
+sudo apt-get update && sudo apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
 # 2. Install essential packages: Python3, pip, venv, git, curl, nginx, mysql
 echo "==> Installing Python, Nginx, MySQL, and dependencies..."
