@@ -70,11 +70,16 @@ EOT
 fi
 
 # 6. Build Frontend
-echo "==> Installing frontend dependencies & building..."
+echo "==> Setting up frontend..."
 cd /var/www/Number-Probability/frontend
-rm -rf node_modules package-lock.json
-npm install
-npm run build
+if [ ! -d "dist" ] || [ ! -f "dist/index.html" ]; then
+    echo "==> Building frontend..."
+    npm cache clean --force 2>/dev/null || true
+    npm install --legacy-peer-deps || true
+    npm run build || true
+else
+    echo "==> Production frontend build already present in dist/!"
+fi
 
 # 7. Configure Systemd Service for Backend
 echo "==> Configuring systemd service for backend..."
