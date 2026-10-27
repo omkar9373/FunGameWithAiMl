@@ -155,6 +155,66 @@ def get_statistics(db: Session = Depends(database.get_db)):
             time_formatted = r.time_str[:5] if r.time_str else "-"
             date_formatted = r.date_str[-5:] if r.date_str else "-"
             last_seen[val] = f"{date_formatted} {time_formatted}"
+            
+    # Calculate numbers not appeared in last 10, 20 & 30 min (Cold numbers)
+    recent_30_results = all_results[:30] if all_results else []
+    
+    # Mode 1: By draws (In 1-minute interval games, 1 round = 1 min)
+    draw_vals_10 = [int(r.value) for r in recent_30_results[:10] if str(r.value).isdigit()]
+    draw_vals_20 = [int(r.value) for r in recent_30_results[:20] if str(r.value).isdigit()]
+    draw_vals_30 = [int(r.value) for r in recent_30_results[:30] if str(r.value).isdigit()]
+    
+    missing_by_draws = {
+        "10m": [n for n in range(10) if n not in draw_vals_10],
+        "20m": [n for n in range(10) if n not in draw_vals_20],
+        "30m": [n for n in range(10) if n not in draw_vals_30]
+    }
+    
+    # Mode 2: By clock time window (Minutes)
+    latest_res = all_results[0] if all_results else None
+    missing_by_time = {"10m": [], "20m": [], "30m": []}
+    
+    if latest_res:
+        try:
+            if latest_res.created_at:
+                latest_dt = latest_res.created_at
+            else:
+                latest_dt = datetime.strptime(f"{latest_res.date_str} {latest_res.time_str}", "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            latest_dt = datetime.now()
+            
+        now_ist = datetime.now(IST).replace(tzinfo=None)
+        
+        # If latest result is within 45 mins of current time (active live session today), use now_ist;
+        # otherwise use latest_dt as anchor to reflect the latest active game window
+        if (now_ist - latest_dt).total_seconds() <= 45 * 60 and latest_dt.date() == now_ist.date():
+            anchor_dt = now_ist
+        else:
+            anchor_dt = latest_dt
+            
+        vals_10m = set()
+        vals_20m = set()
+        vals_30m = set()
+        for r in all_results[:100]:
+            if not str(r.value).isdigit():
+                continue
+            try:
+                r_dt = r.created_at or datetime.strptime(f"{r.date_str} {r.time_str}", "%Y-%m-%d %H:%M:%S")
+                diff_sec = (anchor_dt - r_dt).total_seconds()
+                if -5 <= diff_sec <= 10 * 60:
+                    vals_10m.add(int(r.value))
+                if -5 <= diff_sec <= 20 * 60:
+                    vals_20m.add(int(r.value))
+                if -5 <= diff_sec <= 30 * 60:
+                    vals_30m.add(int(r.value))
+            except Exception:
+                continue
+                
+        missing_by_time = {
+            "10m": [n for n in range(10) if n not in vals_10m],
+            "20m": [n for n in range(10) if n not in vals_20m],
+            "30m": [n for n in range(10) if n not in vals_30m]
+        }
     
     return {"success": True, "message": "Statistics", "data": {
         "today_date": today_str,
@@ -166,6 +226,13 @@ def get_statistics(db: Session = Depends(database.get_db)):
         "number_frequency_24h": number_frequency_today,
         "today_last_seen": today_last_seen,
         "last_seen": last_seen,
+        "missing_numbers": {
+            "by_draws": missing_by_draws,
+            "by_time": missing_by_time,
+            "10m": missing_by_draws["10m"],
+            "20m": missing_by_draws["20m"],
+            "30m": missing_by_draws["30m"]
+        },
         "odd_even_distribution": {},
         "recent_frequency": {},
         "repeated_numbers": 0

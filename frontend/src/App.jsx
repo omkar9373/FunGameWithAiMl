@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Activity, Brain, Target, History, RefreshCcw, Sparkles } from 'lucide-react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { Activity, Target, History, RefreshCcw, Sparkles, Clock, CheckCircle2 } from 'lucide-react';
 import ExpiryNotice from './ExpiryNotice';
 
 // Dynamic API URL: points to /api in production or localhost in development
@@ -18,11 +18,34 @@ function App() {
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [missingMode, setMissingMode] = useState('draws'); // 'draws' (फेरीनुसार) or 'time' (वेळेनुसार)
   const [isLicenseExpired, setIsLicenseExpired] = useState(() => {
     // Check if system date reached 01 Oct 2027 or if preview mode is triggered via ?preview_expiry=true
     const urlParams = new URLSearchParams(window.location.search);
     return new Date() >= EXPIRY_DATE || urlParams.get('preview_expiry') === 'true';
   });
+
+  const missingNumbers = useMemo(() => {
+    const raw = stats?.missing_numbers;
+    if (!raw) return { '10m': [], '20m': [], '30m': [] };
+    if (missingMode === 'time' && raw.by_time) {
+      return raw.by_time;
+    }
+    if (missingMode === 'draws' && raw.by_draws) {
+      return raw.by_draws;
+    }
+    return {
+      '10m': raw['10m'] || [],
+      '20m': raw['20m'] || [],
+      '30m': raw['30m'] || []
+    };
+  }, [stats, missingMode]);
+
+  const getNumberColorClass = (num) => {
+    const n = Number(num);
+    const colorIdx = isNaN(n) ? 9 : (n === 0 ? 9 : n - 1);
+    return numberColors[colorIdx] || 'bg-sky-500 shadow-sky-500/50';
+  };
 
   const topCandidates = useMemo(() => {
     if (!prediction) return [];
@@ -222,15 +245,174 @@ function App() {
               </button>
             </header>
 
-            <div className="grid grid-cols-1 gap-4 mb-5">
-              <div className="bg-[#081229]/60 border border-sky-500/20 hover:border-sky-400/50 hover:bg-[#081229]/80 hover:shadow-[0_8px_20px_rgba(14,165,233,0.15)] transition-all duration-300 rounded-2xl p-4 flex items-center gap-4 hover:-translate-y-1">
-                <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 shadow-[inset_0_0_10px_rgba(14,165,233,0.2)]">
-                  <Activity size={24} className="animate-pulse" />
+            {/* Total Results & Last 10, 20, 30 Min Missing Numbers Section */}
+            <div className="bg-[#081229]/70 backdrop-blur-xl border border-sky-500/20 hover:border-sky-400/40 rounded-2xl p-4 mb-5 shadow-2xl transition-all duration-300">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                
+                {/* Left Side: Total Results */}
+                <div className="flex items-center gap-4 shrink-0 xl:pr-5 xl:border-r xl:border-sky-500/20">
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-sky-500/20 to-cyan-500/10 text-sky-400 shadow-[inset_0_0_12px_rgba(14,165,233,0.3)] border border-sky-500/30">
+                    <Activity size={26} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-sky-200/60 text-[11px] font-black uppercase tracking-widest">Total Results</p>
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
+                        Live DB
+                      </span>
+                    </div>
+                    <h3 className="text-3xl font-black text-white tracking-tight drop-shadow-[0_0_12px_rgba(56,189,248,0.4)]">
+                      {stats.total_results || 0}
+                    </h3>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sky-200/50 text-xs font-bold uppercase tracking-widest mb-1">Total Results</p>
-                  <h3 className="text-2xl font-black text-sky-100">{stats.total_results || 0}</h3>
+
+                {/* Right Side: Missing (Cold) Numbers in Last 10, 20 & 30 Min */}
+                <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+                  {/* Sub Header with Title and Mode Switcher */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <Clock size={14} className="animate-spin" style={{ animationDuration: '12s' }} />
+                      </div>
+                      <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-sky-200 to-cyan-300 uppercase tracking-wider">
+                        न आलेले नंबर (Cold Numbers)
+                      </span>
+                      <span className="text-[10px] text-sky-300/60 hidden sm:inline font-medium">
+                        (गेल्या १०, २० आणि ३० मिनिटांत)
+                      </span>
+                    </div>
+
+                    {/* Mode Switcher */}
+                    <div className="flex items-center bg-[#030914]/80 p-0.5 rounded-xl border border-sky-500/25 shadow-inner">
+                      <button 
+                        onClick={() => setMissingMode('draws')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${missingMode === 'draws' ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md shadow-cyan-500/30 scale-[1.02]' : 'text-sky-300/70 hover:text-white'}`}
+                        title="१ मिनिटाच्या खेळानुसार गेल्या १०, २० आणि ३० फेऱ्यांचे विश्लेषण"
+                      >
+                        🎯 फेरीनुसार (Draws)
+                      </button>
+                      <button 
+                        onClick={() => setMissingMode('time')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${missingMode === 'time' ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md shadow-cyan-500/30 scale-[1.02]' : 'text-sky-300/70 hover:text-white'}`}
+                        title="प्रत्यक्ष घड्याळाच्या वेळेनुसार १०, २०, ३० मिनिटांचे विश्लेषण"
+                      >
+                        ⏱️ वेळेनुसार (Time)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3 Duration Cards: 10 Min, 20 Min, 30 Min */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    
+                    {/* 10 Min Card */}
+                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-amber-500/30 hover:border-amber-400/60 transition-all duration-300 flex flex-col justify-between group/c10 shadow-[0_4px_15px_rgba(245,158,11,0.05)]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                          १० मिनिटे
+                          <span className="text-[9px] text-amber-200/60 font-semibold">(10 Min)</span>
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['10m']?.length > 0 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
+                          {missingNumbers['10m']?.length > 0 ? `${missingNumbers['10m'].length} बाकी` : 'सर्व आले'}
+                        </span>
+                      </div>
+                      
+                      <div className="min-h-[36px] flex items-center">
+                        {missingNumbers['10m']?.length === 0 ? (
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-full justify-center">
+                            <CheckCircle2 size={13} />
+                            सर्व नंबर आले आहेत
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {missingNumbers['10m'].map(num => (
+                              <span 
+                                key={num}
+                                className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
+                                title={`नंबर ${num} गेल्या १० मिनिटांत आलेला नाही`}
+                              >
+                                {num}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 20 Min Card */}
+                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-sky-500/30 hover:border-sky-400/60 transition-all duration-300 flex flex-col justify-between group/c20 shadow-[0_4px_15px_rgba(14,165,233,0.05)]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-black text-sky-300 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                          २० मिनिटे
+                          <span className="text-[9px] text-sky-200/60 font-semibold">(20 Min)</span>
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['20m']?.length > 0 ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
+                          {missingNumbers['20m']?.length > 0 ? `${missingNumbers['20m'].length} बाकी` : 'सर्व आले'}
+                        </span>
+                      </div>
+                      
+                      <div className="min-h-[36px] flex items-center">
+                        {missingNumbers['20m']?.length === 0 ? (
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-full justify-center">
+                            <CheckCircle2 size={13} />
+                            सर्व नंबर आले आहेत
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {missingNumbers['20m'].map(num => (
+                              <span 
+                                key={num}
+                                className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
+                                title={`नंबर ${num} गेल्या २० मिनिटांत आलेला नाही`}
+                              >
+                                {num}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 30 Min Card */}
+                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-purple-500/30 hover:border-purple-400/60 transition-all duration-300 flex flex-col justify-between group/c30 shadow-[0_4px_15px_rgba(168,85,247,0.05)]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-black text-purple-300 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                          ३० मिनिटे
+                          <span className="text-[9px] text-purple-200/60 font-semibold">(30 Min)</span>
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['30m']?.length > 0 ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
+                          {missingNumbers['30m']?.length > 0 ? `${missingNumbers['30m'].length} बाकी` : 'सर्व आले'}
+                        </span>
+                      </div>
+                      
+                      <div className="min-h-[36px] flex items-center">
+                        {missingNumbers['30m']?.length === 0 ? (
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-full justify-center">
+                            <CheckCircle2 size={13} />
+                            सर्व नंबर आले आहेत
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {missingNumbers['30m'].map(num => (
+                              <span 
+                                key={num}
+                                className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
+                                title={`नंबर ${num} गेल्या ३० मिनिटांत आलेला नाही`}
+                              >
+                                {num}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
                 </div>
+
               </div>
             </div>
 

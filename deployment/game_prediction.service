@@ -1,0 +1,14 @@
+[Unit]
+Description=Number Probability FastAPI Application
+After=network.target mysql.service
+
+[Service]
+User=root
+WorkingDirectory=/var/www/Number-Probability/backend
+ExecStart=/var/www/Number-Probability/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+EnvironmentFile=/var/www/Number-Probability/backend/.env
+
+[Install]
+WantedBy=multi-user.target
