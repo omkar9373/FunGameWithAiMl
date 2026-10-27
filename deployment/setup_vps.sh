@@ -5,6 +5,11 @@ echo "=========================================="
 echo " Starting Hostinger VPS Deployment Setup "
 echo "=========================================="
 
+# Pull latest code
+echo "==> Pulling latest code from GitHub..."
+cd /var/www/Number-Probability
+git pull origin main
+
 # Fix any interrupted package installation
 echo "==> Configuring interrupted dpkg packages..."
 export DEBIAN_FRONTEND=noninteractive
@@ -67,7 +72,8 @@ fi
 # 6. Build Frontend
 echo "==> Installing frontend dependencies & building..."
 cd /var/www/Number-Probability/frontend
-npm install --include=dev
+npm install
+npm install tailwindcss@^4.3.3 @tailwindcss/vite@^4.3.3
 npm run build
 
 # 7. Configure Systemd Service for Backend
