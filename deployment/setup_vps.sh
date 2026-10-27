@@ -81,6 +81,10 @@ else
     echo "==> Production frontend build already present in dist/!"
 fi
 
+# Ensure correct web permissions for Nginx www-data user
+echo "==> Setting folder permissions..."
+sudo chmod -R 755 /var/www/Number-Probability
+
 # 7. Configure Systemd Service for Backend
 echo "==> Configuring systemd service for backend..."
 sudo cp /var/www/Number-Probability/deployment/game_prediction.service /etc/systemd/system/game_prediction.service
@@ -90,10 +94,10 @@ sudo systemctl restart game_prediction
 
 # 8. Configure Nginx
 echo "==> Configuring Nginx..."
+sudo rm -f /etc/nginx/sites-enabled/*
+sudo rm -f /etc/nginx/sites-available/default
 sudo cp /var/www/Number-Probability/deployment/nginx.conf /etc/nginx/sites-available/number_probability
-sudo ln -sf /etc/nginx/sites-available/number_probability /etc/nginx/sites-enabled/
-# Remove default nginx site if exists
-sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/number_probability /etc/nginx/sites-enabled/number_probability
 sudo nginx -t
 sudo systemctl restart nginx
 
