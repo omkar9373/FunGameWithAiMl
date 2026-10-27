@@ -67,7 +67,7 @@ fi
 # 6. Build Frontend
 echo "==> Installing frontend dependencies & building..."
 cd /var/www/Number-Probability/frontend
-npm install
+npm install --include=dev
 npm run build
 
 # 7. Configure Systemd Service for Backend
