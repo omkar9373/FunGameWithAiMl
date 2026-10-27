@@ -72,8 +72,8 @@ fi
 # 6. Build Frontend
 echo "==> Installing frontend dependencies & building..."
 cd /var/www/Number-Probability/frontend
+rm -rf node_modules package-lock.json
 npm install
-npm install tailwindcss@^4.3.3 @tailwindcss/vite@^4.3.3
 npm run build
 
 # 7. Configure Systemd Service for Backend
