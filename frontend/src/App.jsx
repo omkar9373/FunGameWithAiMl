@@ -337,56 +337,36 @@ function App() {
                   </div>
                 </div>
 
-                {/* Right Side: Missing (Cold) Numbers in Last 10, 15 & 20 Min (Purely Time-based) */}
-                <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-                  {/* Header with Title and Time Badge */}
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <Clock size={14} className="animate-spin" style={{ animationDuration: '12s' }} />
-                      </div>
-                      <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-sky-200 to-cyan-300 uppercase tracking-wider">
-                        न आलेले नंबर (Cold Numbers)
-                      </span>
-                      <span className="text-[10px] text-sky-300/60 hidden sm:inline font-medium">
-                        (गेल्या १०, १५ आणि २० मिनिटांत)
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 text-[10px] font-black shadow-sm">
-                      <Clock size={12} className="text-cyan-400" />
-                      ⏱️ वेळेनुसार (Time)
-                    </div>
-                  </div>
-
-                  {/* 3 Duration Cards: 10 Min, 15 Min, 20 Min */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Right Side: Missing (Cold) Numbers in Last 10, 15 & 20 Min */}
+                <div className="flex-1 flex flex-col justify-center min-w-0">
+                  {/* 3 Duration Cards: 10 Min, 15 Min, 20 Min with increased height */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
                     {/* 10 Min Card */}
-                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-amber-500/30 hover:border-amber-400/60 transition-all duration-300 flex flex-col justify-between group/c10 shadow-[0_4px_15px_rgba(245,158,11,0.05)]">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-2xl p-3.5 sm:p-4 min-h-[96px] sm:min-h-[105px] border border-amber-500/30 hover:border-amber-400/60 transition-all duration-300 flex flex-col justify-between group/c10 shadow-[0_4px_18px_rgba(245,158,11,0.06)]">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
                           १० मिनिटे
-                          <span className="text-[9px] text-amber-200/60 font-semibold">(10 Min)</span>
+                          <span className="text-[10px] text-amber-200/60 font-semibold">(10 Min)</span>
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['10m']?.length > 0 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-lg border ${missingNumbers['10m']?.length > 0 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['10m']?.length > 0 ? `${missingNumbers['10m'].length} बाकी` : 'सर्व आले'}
                         </span>
                       </div>
                       
-                      <div className="min-h-[36px] flex items-center">
+                      <div className="min-h-[46px] flex items-center">
                         {missingNumbers['10m']?.length === 0 ? (
-                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-full justify-center">
-                            <CheckCircle2 size={13} />
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20 w-full justify-center shadow-inner">
+                            <CheckCircle2 size={15} />
                             सर्व नंबर आले आहेत
                           </div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5 items-center">
+                          <div className="flex flex-wrap gap-2 items-center">
                             {missingNumbers['10m'].map(num => (
                               <span 
                                 key={num}
-                                className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
+                                className={`w-8 h-8 rounded-xl text-white font-black text-sm flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
                                 title={`नंबर ${num} गेल्या १० मिनिटांत आलेला नाही`}
                               >
                                 {num}
@@ -398,30 +378,30 @@ function App() {
                     </div>
 
                     {/* 15 Min Card */}
-                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-sky-500/30 hover:border-sky-400/60 transition-all duration-300 flex flex-col justify-between group/c15 shadow-[0_4px_15px_rgba(14,165,233,0.05)]">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] font-black text-sky-300 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-2xl p-3.5 sm:p-4 min-h-[96px] sm:min-h-[105px] border border-sky-500/30 hover:border-sky-400/60 transition-all duration-300 flex flex-col justify-between group/c15 shadow-[0_4px_18px_rgba(14,165,233,0.06)]">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className="text-xs font-black text-sky-300 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
                           १५ मिनिटे
-                          <span className="text-[9px] text-sky-200/60 font-semibold">(15 Min)</span>
+                          <span className="text-[10px] text-sky-200/60 font-semibold">(15 Min)</span>
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['15m']?.length > 0 ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-lg border ${missingNumbers['15m']?.length > 0 ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['15m']?.length > 0 ? `${missingNumbers['15m'].length} बाकी` : 'सर्व आले'}
                         </span>
                       </div>
                       
-                      <div className="min-h-[36px] flex items-center">
+                      <div className="min-h-[46px] flex items-center">
                         {missingNumbers['15m']?.length === 0 ? (
-                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-full justify-center">
-                            <CheckCircle2 size={13} />
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20 w-full justify-center shadow-inner">
+                            <CheckCircle2 size={15} />
                             सर्व नंबर आले आहेत
                           </div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5 items-center">
+                          <div className="flex flex-wrap gap-2 items-center">
                             {missingNumbers['15m'].map(num => (
                               <span 
                                 key={num}
-                                className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
+                                className={`w-8 h-8 rounded-xl text-white font-black text-sm flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
                                 title={`नंबर ${num} गेल्या १५ मिनिटांत आलेला नाही`}
                               >
                                 {num}
@@ -433,30 +413,30 @@ function App() {
                     </div>
 
                     {/* 20 Min Card */}
-                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-purple-500/30 hover:border-purple-400/60 transition-all duration-300 flex flex-col justify-between group/c20 shadow-[0_4px_15px_rgba(168,85,247,0.05)]">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] font-black text-purple-300 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                    <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-2xl p-3.5 sm:p-4 min-h-[96px] sm:min-h-[105px] border border-purple-500/30 hover:border-purple-400/60 transition-all duration-300 flex flex-col justify-between group/c20 shadow-[0_4px_18px_rgba(168,85,247,0.06)]">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className="text-xs font-black text-purple-300 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-ping" />
                           २० मिनिटे
-                          <span className="text-[9px] text-purple-200/60 font-semibold">(20 Min)</span>
+                          <span className="text-[10px] text-purple-200/60 font-semibold">(20 Min)</span>
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['20m']?.length > 0 ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-lg border ${missingNumbers['20m']?.length > 0 ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['20m']?.length > 0 ? `${missingNumbers['20m'].length} बाकी` : 'सर्व आले'}
                         </span>
                       </div>
                       
-                      <div className="min-h-[36px] flex items-center">
+                      <div className="min-h-[46px] flex items-center">
                         {missingNumbers['20m']?.length === 0 ? (
-                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-full justify-center">
-                            <CheckCircle2 size={13} />
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20 w-full justify-center shadow-inner">
+                            <CheckCircle2 size={15} />
                             सर्व नंबर आले आहेत
                           </div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5 items-center">
+                          <div className="flex flex-wrap gap-2 items-center">
                             {missingNumbers['20m'].map(num => (
                               <span 
                                 key={num}
-                                className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
+                                className={`w-8 h-8 rounded-xl text-white font-black text-sm flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
                                 title={`नंबर ${num} गेल्या २० मिनिटांत आलेला नाही`}
                               >
                                 {num}
