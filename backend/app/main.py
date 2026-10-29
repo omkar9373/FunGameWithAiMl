@@ -156,23 +156,25 @@ def get_statistics(db: Session = Depends(database.get_db)):
             date_formatted = r.date_str[-5:] if r.date_str else "-"
             last_seen[val] = f"{date_formatted} {time_formatted}"
             
-    # Calculate numbers not appeared in last 10, 20 & 30 min (Cold numbers)
+    # Calculate numbers not appeared in last 10, 15 & 20 min (Cold numbers)
     recent_30_results = all_results[:30] if all_results else []
     
     # Mode 1: By draws (In 1-minute interval games, 1 round = 1 min)
     draw_vals_10 = [int(r.value) for r in recent_30_results[:10] if str(r.value).isdigit()]
+    draw_vals_15 = [int(r.value) for r in recent_30_results[:15] if str(r.value).isdigit()]
     draw_vals_20 = [int(r.value) for r in recent_30_results[:20] if str(r.value).isdigit()]
     draw_vals_30 = [int(r.value) for r in recent_30_results[:30] if str(r.value).isdigit()]
     
     missing_by_draws = {
         "10m": [n for n in range(10) if n not in draw_vals_10],
+        "15m": [n for n in range(10) if n not in draw_vals_15],
         "20m": [n for n in range(10) if n not in draw_vals_20],
         "30m": [n for n in range(10) if n not in draw_vals_30]
     }
     
     # Mode 2: By clock time window (Minutes)
     latest_res = all_results[0] if all_results else None
-    missing_by_time = {"10m": [], "20m": [], "30m": []}
+    missing_by_time = {"10m": [], "15m": [], "20m": [], "30m": []}
     
     if latest_res:
         try:
@@ -193,6 +195,7 @@ def get_statistics(db: Session = Depends(database.get_db)):
             anchor_dt = latest_dt
             
         vals_10m = set()
+        vals_15m = set()
         vals_20m = set()
         vals_30m = set()
         for r in all_results[:100]:
@@ -203,6 +206,8 @@ def get_statistics(db: Session = Depends(database.get_db)):
                 diff_sec = (anchor_dt - r_dt).total_seconds()
                 if -5 <= diff_sec <= 10 * 60:
                     vals_10m.add(int(r.value))
+                if -5 <= diff_sec <= 15 * 60:
+                    vals_15m.add(int(r.value))
                 if -5 <= diff_sec <= 20 * 60:
                     vals_20m.add(int(r.value))
                 if -5 <= diff_sec <= 30 * 60:
@@ -212,6 +217,7 @@ def get_statistics(db: Session = Depends(database.get_db)):
                 
         missing_by_time = {
             "10m": [n for n in range(10) if n not in vals_10m],
+            "15m": [n for n in range(10) if n not in vals_15m],
             "20m": [n for n in range(10) if n not in vals_20m],
             "30m": [n for n in range(10) if n not in vals_30m]
         }
@@ -230,6 +236,7 @@ def get_statistics(db: Session = Depends(database.get_db)):
             "by_draws": missing_by_draws,
             "by_time": missing_by_time,
             "10m": missing_by_draws["10m"],
+            "15m": missing_by_draws["15m"],
             "20m": missing_by_draws["20m"],
             "30m": missing_by_draws["30m"]
         },
