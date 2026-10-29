@@ -19,5 +19,8 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           script: |
+            cd /var/www/Number-Probability
+            git fetch origin main
+            git reset --hard origin/main
             chmod +x /var/www/Number-Probability/deployment/deploy.sh
             bash /var/www/Number-Probability/deployment/deploy.sh
