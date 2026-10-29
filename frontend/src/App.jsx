@@ -339,6 +339,25 @@ function App() {
 
                 {/* Right Side: Missing (Cold) Numbers in Last 10, 15 & 20 Min (Purely Time-based) */}
                 <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+                  {/* Header with Title and Time Badge */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <Clock size={14} className="animate-spin" style={{ animationDuration: '12s' }} />
+                      </div>
+                      <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-sky-200 to-cyan-300 uppercase tracking-wider">
+                        न आलेले नंबर (Cold Numbers)
+                      </span>
+                      <span className="text-[10px] text-sky-300/60 hidden sm:inline font-medium">
+                        (गेल्या १०, १५ आणि २० मिनिटांत)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 text-[10px] font-black shadow-sm">
+                      <Clock size={12} className="text-cyan-400" />
+                      ⏱️ वेळेनुसार (Time)
+                    </div>
+                  </div>
 
                   {/* 3 Duration Cards: 10 Min, 15 Min, 20 Min */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
