@@ -22,33 +22,28 @@ function App() {
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [missingMode, setMissingMode] = useState('draws'); // 'draws' (फेरीनुसार) or 'time' (वेळेनुसार)
   const [isLicenseExpired, setIsLicenseExpired] = useState(() => {
     // Check if system date reached 01 Oct 2027 or if preview mode is triggered via ?preview_expiry=true
     const urlParams = new URLSearchParams(window.location.search);
     return new Date() >= EXPIRY_DATE || urlParams.get('preview_expiry') === 'true';
   });
 
+  // Calculate missing numbers purely by time (10, 20 & 30 Min)
   const missingNumbers = useMemo(() => {
     const raw = stats?.missing_numbers;
-    // If backend provided missing_numbers and it has non-empty structure, use it
-    if (raw) {
-      if (missingMode === 'time' && raw.by_time && (raw.by_time['10m'] || raw.by_time['20m'] || raw.by_time['30m'])) {
-        return raw.by_time;
-      }
-      if (missingMode === 'draws' && raw.by_draws && (raw.by_draws['10m'] || raw.by_draws['20m'] || raw.by_draws['30m'])) {
-        return raw.by_draws;
-      }
-      if (raw['10m'] || raw['20m'] || raw['30m']) {
-        return {
-          '10m': raw['10m'] || [],
-          '20m': raw['20m'] || [],
-          '30m': raw['30m'] || []
-        };
-      }
+    // If backend provided missing_numbers.by_time, use it directly
+    if (raw?.by_time && (raw.by_time['10m'] || raw.by_time['20m'] || raw.by_time['30m'])) {
+      return raw.by_time;
+    }
+    if (raw && !raw.by_time && (raw['10m'] || raw['20m'] || raw['30m'])) {
+      return {
+        '10m': raw['10m'] || [],
+        '20m': raw['20m'] || [],
+        '30m': raw['30m'] || []
+      };
     }
 
-    // Client-side fallback calculation from latestResults
+    // Client-side fallback calculation by time window (10, 20, 30 Min) from latestResults
     const numericResults = latestResults
       .map(r => ({
         val: parseInt(r.value, 10),
@@ -58,58 +53,47 @@ function App() {
       }))
       .filter(item => !isNaN(item.val) && item.val >= 0 && item.val <= 9);
 
-    if (missingMode === 'draws') {
-      const vals10 = new Set(numericResults.slice(0, 10).map(r => r.val));
-      const vals20 = new Set(numericResults.slice(0, 20).map(r => r.val));
-      const vals30 = new Set(numericResults.slice(0, 30).map(r => r.val));
-
-      return {
-        '10m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals10.has(n)),
-        '20m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals20.has(n)),
-        '30m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals30.has(n))
-      };
-    } else {
-      if (numericResults.length === 0) {
-        return { '10m': [], '20m': [], '30m': [] };
-      }
-
-      const parseDt = (item) => {
-        if (item.created_at) {
-          const d = new Date(item.created_at);
-          if (!isNaN(d.getTime())) return d;
-        }
-        if (item.date_str && item.time_str) {
-          const d = new Date(`${item.date_str}T${item.time_str}`);
-          if (!isNaN(d.getTime())) return d;
-        }
-        return null;
-      };
-
-      const now = new Date();
-      const latestDt = parseDt(numericResults[0]) || now;
-      const diffFromNow = Math.abs(now.getTime() - latestDt.getTime());
-      const anchorDt = diffFromNow <= 45 * 60 * 1000 ? now : latestDt;
-
-      const vals10 = new Set();
-      const vals20 = new Set();
-      const vals30 = new Set();
-
-      for (const item of numericResults) {
-        const itemDt = parseDt(item);
-        if (!itemDt) continue;
-        const diffMin = (anchorDt.getTime() - itemDt.getTime()) / (60 * 1000);
-        if (diffMin >= -0.5 && diffMin <= 10) vals10.add(item.val);
-        if (diffMin >= -0.5 && diffMin <= 20) vals20.add(item.val);
-        if (diffMin >= -0.5 && diffMin <= 30) vals30.add(item.val);
-      }
-
-      return {
-        '10m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals10.has(n)),
-        '20m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals20.has(n)),
-        '30m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals30.has(n))
-      };
+    if (numericResults.length === 0) {
+      return { '10m': [], '20m': [], '30m': [] };
     }
-  }, [stats, missingMode, latestResults]);
+
+    const parseDt = (item) => {
+      if (item.created_at) {
+        const d = new Date(item.created_at);
+        if (!isNaN(d.getTime())) return d;
+      }
+      if (item.date_str && item.time_str) {
+        const d = new Date(`${item.date_str}T${item.time_str}`);
+        if (!isNaN(d.getTime())) return d;
+      }
+      return null;
+    };
+
+    const now = new Date();
+    const latestDt = parseDt(numericResults[0]) || now;
+    const diffFromNow = Math.abs(now.getTime() - latestDt.getTime());
+    // If latest record was within 45 mins of live clock, anchor to now, else anchor to latest record time
+    const anchorDt = diffFromNow <= 45 * 60 * 1000 ? now : latestDt;
+
+    const vals10 = new Set();
+    const vals20 = new Set();
+    const vals30 = new Set();
+
+    for (const item of numericResults) {
+      const itemDt = parseDt(item);
+      if (!itemDt) continue;
+      const diffMin = (anchorDt.getTime() - itemDt.getTime()) / (60 * 1000);
+      if (diffMin >= -0.5 && diffMin <= 10) vals10.add(item.val);
+      if (diffMin >= -0.5 && diffMin <= 20) vals20.add(item.val);
+      if (diffMin >= -0.5 && diffMin <= 30) vals30.add(item.val);
+    }
+
+    return {
+      '10m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals10.has(n)),
+      '20m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals20.has(n)),
+      '30m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals30.has(n))
+    };
+  }, [stats, latestResults]);
 
   const getNumberColorClass = (num) => {
     const n = Number(num);
@@ -353,9 +337,9 @@ function App() {
                   </div>
                 </div>
 
-                {/* Right Side: Missing (Cold) Numbers in Last 10, 20 & 30 Min */}
+                {/* Right Side: Missing (Cold) Numbers in Last 10, 20 & 30 Min (Purely Time-based) */}
                 <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-                  {/* Sub Header with Title and Mode Switcher */}
+                  {/* Header with Title and Time Badge */}
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -365,41 +349,26 @@ function App() {
                         न आलेले नंबर (Cold Numbers)
                       </span>
                       <span className="text-[10px] text-sky-300/60 hidden sm:inline font-medium">
-                        {missingMode === 'draws' ? '(गेल्या १०, २० आणि ३० फेऱ्यांत)' : '(गेल्या १०, २० आणि ३० मिनिटांत)'}
+                        (गेल्या १०, २० आणि ३० मिनिटांत)
                       </span>
                     </div>
 
-                    {/* Mode Switcher */}
-                    <div className="flex items-center bg-[#030914]/80 p-0.5 rounded-xl border border-sky-500/25 shadow-inner">
-                      <button 
-                        onClick={() => setMissingMode('draws')}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${missingMode === 'draws' ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md shadow-cyan-500/30 scale-[1.02]' : 'text-sky-300/70 hover:text-white'}`}
-                        title="१ मिनिटाच्या खेळानुसार गेल्या १०, २० आणि ३० फेऱ्यांचे विश्लेषण"
-                      >
-                        🎯 फेरीनुसार (Draws)
-                      </button>
-                      <button 
-                        onClick={() => setMissingMode('time')}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${missingMode === 'time' ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md shadow-cyan-500/30 scale-[1.02]' : 'text-sky-300/70 hover:text-white'}`}
-                        title="प्रत्यक्ष घड्याळाच्या वेळेनुसार १०, २०, ३० मिनिटांचे विश्लेषण"
-                      >
-                        ⏱️ वेळेनुसार (Time)
-                      </button>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 text-[10px] font-black shadow-sm">
+                      <Clock size={12} className="text-cyan-400" />
+                      ⏱️ वेळेनुसार (Time)
                     </div>
                   </div>
 
-                  {/* 3 Duration Cards: 10, 20, 30 */}
+                  {/* 3 Duration Cards: 10 Min, 20 Min, 30 Min */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     
-                    {/* 10 Duration Card */}
+                    {/* 10 Min Card */}
                     <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-amber-500/30 hover:border-amber-400/60 transition-all duration-300 flex flex-col justify-between group/c10 shadow-[0_4px_15px_rgba(245,158,11,0.05)]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                          {missingMode === 'draws' ? '१० फेऱ्या' : '१० मिनिटे'}
-                          <span className="text-[9px] text-amber-200/60 font-semibold">
-                            {missingMode === 'draws' ? '(10 Draws)' : '(10 Min)'}
-                          </span>
+                          १० मिनिटे
+                          <span className="text-[9px] text-amber-200/60 font-semibold">(10 Min)</span>
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['10m']?.length > 0 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['10m']?.length > 0 ? `${missingNumbers['10m'].length} बाकी` : 'सर्व आले'}
@@ -418,7 +387,7 @@ function App() {
                               <span 
                                 key={num}
                                 className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
-                                title={missingMode === 'draws' ? `नंबर ${num} गेल्या १० फेऱ्यांत आलेला नाही` : `नंबर ${num} गेल्या १० मिनिटांत आलेला नाही`}
+                                title={`नंबर ${num} गेल्या १० मिनिटांत आलेला नाही`}
                               >
                                 {num}
                               </span>
@@ -428,15 +397,13 @@ function App() {
                       </div>
                     </div>
 
-                    {/* 20 Duration Card */}
+                    {/* 20 Min Card */}
                     <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-sky-500/30 hover:border-sky-400/60 transition-all duration-300 flex flex-col justify-between group/c20 shadow-[0_4px_15px_rgba(14,165,233,0.05)]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-black text-sky-300 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-                          {missingMode === 'draws' ? '२० फेऱ्या' : '२० मिनिटे'}
-                          <span className="text-[9px] text-sky-200/60 font-semibold">
-                            {missingMode === 'draws' ? '(20 Draws)' : '(20 Min)'}
-                          </span>
+                          २० मिनिटे
+                          <span className="text-[9px] text-sky-200/60 font-semibold">(20 Min)</span>
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['20m']?.length > 0 ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['20m']?.length > 0 ? `${missingNumbers['20m'].length} बाकी` : 'सर्व आले'}
@@ -455,7 +422,7 @@ function App() {
                               <span 
                                 key={num}
                                 className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
-                                title={missingMode === 'draws' ? `नंबर ${num} गेल्या २० फेऱ्यांत आलेला नाही` : `नंबर ${num} गेल्या २० मिनिटांत आलेला नाही`}
+                                title={`नंबर ${num} गेल्या २० मिनिटांत आलेला नाही`}
                               >
                                 {num}
                               </span>
@@ -465,15 +432,13 @@ function App() {
                       </div>
                     </div>
 
-                    {/* 30 Duration Card */}
+                    {/* 30 Min Card */}
                     <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-purple-500/30 hover:border-purple-400/60 transition-all duration-300 flex flex-col justify-between group/c30 shadow-[0_4px_15px_rgba(168,85,247,0.05)]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-black text-purple-300 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-                          {missingMode === 'draws' ? '३० फेऱ्या' : '३० मिनिटे'}
-                          <span className="text-[9px] text-purple-200/60 font-semibold">
-                            {missingMode === 'draws' ? '(30 Draws)' : '(30 Min)'}
-                          </span>
+                          ३० मिनिटे
+                          <span className="text-[9px] text-purple-200/60 font-semibold">(30 Min)</span>
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['30m']?.length > 0 ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['30m']?.length > 0 ? `${missingNumbers['30m'].length} बाकी` : 'सर्व आले'}
@@ -492,7 +457,7 @@ function App() {
                               <span 
                                 key={num}
                                 className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
-                                title={missingMode === 'draws' ? `नंबर ${num} गेल्या ३० फेऱ्यांत आलेला नाही` : `नंबर ${num} गेल्या ३० मिनिटांत आलेला नाही`}
+                                title={`नंबर ${num} गेल्या ३० मिनिटांत आलेला नाही`}
                               >
                                 {num}
                               </span>
