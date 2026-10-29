@@ -5,7 +5,11 @@ import { Activity, Target, History, RefreshCcw, Sparkles, Clock, CheckCircle2 } 
 import ExpiryNotice from './ExpiryNotice';
 
 // Dynamic API URL: points to /api in production or localhost in development
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000/api' : '/api');
+const API_URL = import.meta.env.VITE_API_URL || (
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:8000/api'
+    : '/api'
+);
 
 // Expiration date: 01 October 2027 (१ ऑक्टोबर २०२७ रोजीच हे आपोआप रेंडर होईल)
 const EXPIRY_DATE = new Date('2027-10-01T00:00:00');
@@ -27,19 +31,85 @@ function App() {
 
   const missingNumbers = useMemo(() => {
     const raw = stats?.missing_numbers;
-    if (!raw) return { '10m': [], '20m': [], '30m': [] };
-    if (missingMode === 'time' && raw.by_time) {
-      return raw.by_time;
+    // If backend provided missing_numbers and it has non-empty structure, use it
+    if (raw) {
+      if (missingMode === 'time' && raw.by_time && (raw.by_time['10m'] || raw.by_time['20m'] || raw.by_time['30m'])) {
+        return raw.by_time;
+      }
+      if (missingMode === 'draws' && raw.by_draws && (raw.by_draws['10m'] || raw.by_draws['20m'] || raw.by_draws['30m'])) {
+        return raw.by_draws;
+      }
+      if (raw['10m'] || raw['20m'] || raw['30m']) {
+        return {
+          '10m': raw['10m'] || [],
+          '20m': raw['20m'] || [],
+          '30m': raw['30m'] || []
+        };
+      }
     }
-    if (missingMode === 'draws' && raw.by_draws) {
-      return raw.by_draws;
+
+    // Client-side fallback calculation from latestResults
+    const numericResults = latestResults
+      .map(r => ({
+        val: parseInt(r.value, 10),
+        time_str: r.time_str,
+        date_str: r.date_str,
+        created_at: r.created_at
+      }))
+      .filter(item => !isNaN(item.val) && item.val >= 0 && item.val <= 9);
+
+    if (missingMode === 'draws') {
+      const vals10 = new Set(numericResults.slice(0, 10).map(r => r.val));
+      const vals20 = new Set(numericResults.slice(0, 20).map(r => r.val));
+      const vals30 = new Set(numericResults.slice(0, 30).map(r => r.val));
+
+      return {
+        '10m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals10.has(n)),
+        '20m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals20.has(n)),
+        '30m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals30.has(n))
+      };
+    } else {
+      if (numericResults.length === 0) {
+        return { '10m': [], '20m': [], '30m': [] };
+      }
+
+      const parseDt = (item) => {
+        if (item.created_at) {
+          const d = new Date(item.created_at);
+          if (!isNaN(d.getTime())) return d;
+        }
+        if (item.date_str && item.time_str) {
+          const d = new Date(`${item.date_str}T${item.time_str}`);
+          if (!isNaN(d.getTime())) return d;
+        }
+        return null;
+      };
+
+      const now = new Date();
+      const latestDt = parseDt(numericResults[0]) || now;
+      const diffFromNow = Math.abs(now.getTime() - latestDt.getTime());
+      const anchorDt = diffFromNow <= 45 * 60 * 1000 ? now : latestDt;
+
+      const vals10 = new Set();
+      const vals20 = new Set();
+      const vals30 = new Set();
+
+      for (const item of numericResults) {
+        const itemDt = parseDt(item);
+        if (!itemDt) continue;
+        const diffMin = (anchorDt.getTime() - itemDt.getTime()) / (60 * 1000);
+        if (diffMin >= -0.5 && diffMin <= 10) vals10.add(item.val);
+        if (diffMin >= -0.5 && diffMin <= 20) vals20.add(item.val);
+        if (diffMin >= -0.5 && diffMin <= 30) vals30.add(item.val);
+      }
+
+      return {
+        '10m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals10.has(n)),
+        '20m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals20.has(n)),
+        '30m': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => !vals30.has(n))
+      };
     }
-    return {
-      '10m': raw['10m'] || [],
-      '20m': raw['20m'] || [],
-      '30m': raw['30m'] || []
-    };
-  }, [stats, missingMode]);
+  }, [stats, missingMode, latestResults]);
 
   const getNumberColorClass = (num) => {
     const n = Number(num);
@@ -65,25 +135,41 @@ function App() {
     try {
       setLoading(true);
       setIsRefreshing(true);
-      const predRes = await axios.post(`${API_URL}/predict`);
-      if (predRes.data.success) {
-        setPrediction(predRes.data.data);
+      
+      try {
+        const predRes = await axios.post(`${API_URL}/predict`);
+        if (predRes.data.success) {
+          setPrediction(predRes.data.data);
+        }
+      } catch (err) {
+        console.warn('Predict fetch failed:', err?.message);
+        if (err?.response?.data?.error === 'LICENSE_EXPIRED' || err?.response?.status === 403) {
+          setIsLicenseExpired(true);
+        }
       }
       
-      const statsRes = await axios.get(`${API_URL}/results/statistics`);
-      if (statsRes.data.success) {
-        setStats(statsRes.data.data);
+      try {
+        const statsRes = await axios.get(`${API_URL}/results/statistics`);
+        if (statsRes.data.success) {
+          setStats(statsRes.data.data);
+        }
+      } catch (err) {
+        console.warn('Stats fetch failed:', err?.message);
+        if (err?.response?.data?.error === 'LICENSE_EXPIRED' || err?.response?.status === 403) {
+          setIsLicenseExpired(true);
+        }
       }
 
-      const latestRes = await axios.get(`${API_URL}/results/latest?limit=10`);
-      if (latestRes.data.success) {
-        setLatestResults(latestRes.data.data || []);
+      try {
+        const latestRes = await axios.get(`${API_URL}/results/latest?limit=50`);
+        if (latestRes.data.success) {
+          setLatestResults(latestRes.data.data || []);
+        }
+      } catch (err) {
+        console.warn('Latest results fetch failed:', err?.message);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      if (error?.response?.data?.error === 'LICENSE_EXPIRED' || error?.response?.status === 403) {
-        setIsLicenseExpired(true);
-      }
+      console.error('Error in fetchDashboardData:', error);
     } finally {
       setLoading(false);
       setTimeout(() => setIsRefreshing(false), 1000);
@@ -279,7 +365,7 @@ function App() {
                         न आलेले नंबर (Cold Numbers)
                       </span>
                       <span className="text-[10px] text-sky-300/60 hidden sm:inline font-medium">
-                        (गेल्या १०, २० आणि ३० मिनिटांत)
+                        {missingMode === 'draws' ? '(गेल्या १०, २० आणि ३० फेऱ्यांत)' : '(गेल्या १०, २० आणि ३० मिनिटांत)'}
                       </span>
                     </div>
 
@@ -302,16 +388,18 @@ function App() {
                     </div>
                   </div>
 
-                  {/* 3 Duration Cards: 10 Min, 20 Min, 30 Min */}
+                  {/* 3 Duration Cards: 10, 20, 30 */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     
-                    {/* 10 Min Card */}
+                    {/* 10 Duration Card */}
                     <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-amber-500/30 hover:border-amber-400/60 transition-all duration-300 flex flex-col justify-between group/c10 shadow-[0_4px_15px_rgba(245,158,11,0.05)]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                          १० मिनिटे
-                          <span className="text-[9px] text-amber-200/60 font-semibold">(10 Min)</span>
+                          {missingMode === 'draws' ? '१० फेऱ्या' : '१० मिनिटे'}
+                          <span className="text-[9px] text-amber-200/60 font-semibold">
+                            {missingMode === 'draws' ? '(10 Draws)' : '(10 Min)'}
+                          </span>
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['10m']?.length > 0 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['10m']?.length > 0 ? `${missingNumbers['10m'].length} बाकी` : 'सर्व आले'}
@@ -330,7 +418,7 @@ function App() {
                               <span 
                                 key={num}
                                 className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
-                                title={`नंबर ${num} गेल्या १० मिनिटांत आलेला नाही`}
+                                title={missingMode === 'draws' ? `नंबर ${num} गेल्या १० फेऱ्यांत आलेला नाही` : `नंबर ${num} गेल्या १० मिनिटांत आलेला नाही`}
                               >
                                 {num}
                               </span>
@@ -340,13 +428,15 @@ function App() {
                       </div>
                     </div>
 
-                    {/* 20 Min Card */}
+                    {/* 20 Duration Card */}
                     <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-sky-500/30 hover:border-sky-400/60 transition-all duration-300 flex flex-col justify-between group/c20 shadow-[0_4px_15px_rgba(14,165,233,0.05)]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-black text-sky-300 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-                          २० मिनिटे
-                          <span className="text-[9px] text-sky-200/60 font-semibold">(20 Min)</span>
+                          {missingMode === 'draws' ? '२० फेऱ्या' : '२० मिनिटे'}
+                          <span className="text-[9px] text-sky-200/60 font-semibold">
+                            {missingMode === 'draws' ? '(20 Draws)' : '(20 Min)'}
+                          </span>
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['20m']?.length > 0 ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['20m']?.length > 0 ? `${missingNumbers['20m'].length} बाकी` : 'सर्व आले'}
@@ -365,7 +455,7 @@ function App() {
                               <span 
                                 key={num}
                                 className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
-                                title={`नंबर ${num} गेल्या २० मिनिटांत आलेला नाही`}
+                                title={missingMode === 'draws' ? `नंबर ${num} गेल्या २० फेऱ्यांत आलेला नाही` : `नंबर ${num} गेल्या २० मिनिटांत आलेला नाही`}
                               >
                                 {num}
                               </span>
@@ -375,13 +465,15 @@ function App() {
                       </div>
                     </div>
 
-                    {/* 30 Min Card */}
+                    {/* 30 Duration Card */}
                     <div className="bg-[#0f172a]/80 hover:bg-[#0f172a] rounded-xl p-2.5 border border-purple-500/30 hover:border-purple-400/60 transition-all duration-300 flex flex-col justify-between group/c30 shadow-[0_4px_15px_rgba(168,85,247,0.05)]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-black text-purple-300 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-                          ३० मिनिटे
-                          <span className="text-[9px] text-purple-200/60 font-semibold">(30 Min)</span>
+                          {missingMode === 'draws' ? '३० फेऱ्या' : '३० मिनिटे'}
+                          <span className="text-[9px] text-purple-200/60 font-semibold">
+                            {missingMode === 'draws' ? '(30 Draws)' : '(30 Min)'}
+                          </span>
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${missingNumbers['30m']?.length > 0 ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                           {missingNumbers['30m']?.length > 0 ? `${missingNumbers['30m'].length} बाकी` : 'सर्व आले'}
@@ -400,7 +492,7 @@ function App() {
                               <span 
                                 key={num}
                                 className={`w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-125 cursor-default ${getNumberColorClass(num)}`}
-                                title={`नंबर ${num} गेल्या ३० मिनिटांत आलेला नाही`}
+                                title={missingMode === 'draws' ? `नंबर ${num} गेल्या ३० फेऱ्यांत आलेला नाही` : `नंबर ${num} गेल्या ३० मिनिटांत आलेला नाही`}
                               >
                                 {num}
                               </span>
